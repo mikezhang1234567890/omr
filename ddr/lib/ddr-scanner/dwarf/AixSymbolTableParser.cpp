@@ -39,8 +39,6 @@ static Dwarf_Die _builtInTypeDie = NULL;
 static int _startNewFile = 0;
 /* Start numbering DIE refs for refMap at one (zero will be for when no ref is found). */
 static Dwarf_Off refNumber = 1;
-/* This is used to initialize declLine to a unique value for each unique DIE every time it is required. */
-static Dwarf_Off declarationLine = 1;
 Dwarf_CU_Context * Dwarf_CU_Context::_firstCU;
 Dwarf_CU_Context * Dwarf_CU_Context::_currentCU;
 
@@ -1074,10 +1072,9 @@ parseFields(const string data, Dwarf_Die currentDie, Dwarf_Error *error)
 	/* Create attributes. */
 	Dwarf_Attribute name = new Dwarf_Attribute_s;
 	Dwarf_Attribute type = new Dwarf_Attribute_s;
-	Dwarf_Attribute declFile = new Dwarf_Attribute_s;
 	Dwarf_Attribute offset = new Dwarf_Attribute_s;
 
-	if ((NULL == name) || (NULL == type) || (NULL == declFile) || (NULL == offset)) {
+	if ((NULL == name) || (NULL == type) || (NULL == offset)) {
 		ret = DW_DLV_ERROR;
 		setError(error, DW_DLE_MAF);
 	} else {
@@ -1091,7 +1088,7 @@ parseFields(const string data, Dwarf_Die currentDie, Dwarf_Error *error)
 		name->_ref = NULL;
 
 		type->_type = DW_AT_type;
-		type->_nextAttr = declFile;
+		type->_nextAttr = offset;
 		type->_form = DW_FORM_ref1;
 
 		int ID = extractTypeID(fieldAttributes[0],0);
@@ -1102,14 +1099,6 @@ parseFields(const string data, Dwarf_Die currentDie, Dwarf_Error *error)
 
 		/* Push the type into a vector to populate in a second pass. */
 		refsToPopulate.push_back(make_pair<int, Dwarf_Attribute>((int)ID, (Dwarf_Attribute)type));
-		declFile->_type = DW_AT_decl_file;
-		declFile->_form = DW_FORM_udata;
-		declFile->_nextAttr = offset;
-		declFile->_sdata = 0;
-		/* The declaration file number starts at 1. */
-		declFile->_udata = Dwarf_CU_Context::_fileId.size();
-		declFile->_refdata = 0;
-		declFile->_ref = NULL;
 
 		offset->_type = DW_AT_data_member_location;
 		offset->_form = DW_FORM_udata;
@@ -1394,13 +1383,11 @@ parseTypeDef(const string data,
 	int ret = DW_DLV_OK;
 	int ID = 0;
 
-	/* Set attributes for name, type, and declaring file. */
+	/* Set attributes for name and type. */
 	Dwarf_Attribute type = new Dwarf_Attribute_s;
 	Dwarf_Attribute name  = new Dwarf_Attribute_s;
-	Dwarf_Attribute declFile = new Dwarf_Attribute_s;
-	Dwarf_Attribute declLine = new Dwarf_Attribute_s;
 
-	if ((NULL == type) || (NULL == name) || (NULL == declFile) || (NULL == declLine)) {
+	if ((NULL == type) || (NULL == name)) {
 		ret = DW_DLV_ERROR;
 		setError(error, DW_DLE_MAF);
 	} else {
@@ -1429,38 +1416,12 @@ parseTypeDef(const string data,
 		refsToPopulate.push_back(make_pair<int, Dwarf_Attribute>((int)ID, (Dwarf_Attribute)type));
 		name->_type = DW_AT_name;
 		name->_form = DW_FORM_string;
-		name->_nextAttr = declLine;
+		name->_nextAttr = NULL;
 		name->_sdata = 0;
 		name->_udata = 0;
 		name->_stringdata = strdup(dieName.c_str());
 		name->_refdata = 0;
 		name->_ref = NULL;
-
-		declLine->_type = DW_AT_decl_line;
-		declLine->_nextAttr = declFile;
-		declLine->_form = DW_FORM_udata;
-		declLine->_sdata = 0;
-		declLine->_udata = declarationLine;
-		declLine->_refdata = 0;
-		declLine->_ref = NULL;
-
-		declarationLine = declarationLine + 1;
-
-		declFile->_type = DW_AT_decl_file;
-		declFile->_form = DW_FORM_udata;
-		declFile->_nextAttr = NULL;
-		declFile->_sdata = 0;
-		declFile->_refdata = 0;
-		declFile->_ref = NULL;
-		if (!Dwarf_CU_Context::_fileId.empty()) {
-			/* The declaration file number starts at 1. */
-			declFile->_udata = Dwarf_CU_Context::_fileId.size();
-		} else {
-			/* If there is no declaring file then delete the attributes for the declFile and declLine. */
-			name->_nextAttr = NULL;
-			delete declFile;
-			delete declLine;
-		}
 
 		currentDie->_attribute = type;
 	}
@@ -1798,21 +1759,15 @@ setDieAttributes(const string dieName,
 			case DW_AT_byte_size:
 				tmp->_udata = dieSize;
 				break;
-			case DW_AT_decl_file:
-				/* The declaration file number starts at 1. */
-				tmp->_udata = Dwarf_CU_Context::_fileId.size();
-				break;
 			}
 			tmp = tmp->_nextAttr;
 		}
 	} else {
-		/* Create attributes for name, size, and declaring file. */
+		/* Create attributes for name and size. */
 		Dwarf_Attribute name  = new Dwarf_Attribute_s;
 		Dwarf_Attribute size = new Dwarf_Attribute_s;
-		Dwarf_Attribute declFile = new Dwarf_Attribute_s;
-		Dwarf_Attribute declLine = new Dwarf_Attribute_s;
 
-		if ((NULL == name) || (NULL == size) || (NULL == declFile) || (NULL == declLine)) {
+		if ((NULL == name) || (NULL == size)) {
 			ret = DW_DLV_ERROR;
 			setError(error, DW_DLE_MAF);
 		} else {
@@ -1826,33 +1781,12 @@ setDieAttributes(const string dieName,
 			name->_ref = NULL;
 
 			size->_type = DW_AT_byte_size;
-			size->_nextAttr = declFile;
+			size->_nextAttr = NULL;
 			size->_form = DW_FORM_udata;
 			size->_sdata = 0;
 			size->_udata = dieSize;
 			size->_refdata = 0;
 			size->_ref = NULL;
-
-			declFile->_type = DW_AT_decl_file;
-			declFile->_nextAttr = declLine;
-			declFile->_form = DW_FORM_udata;
-			declFile->_sdata = 0;
-			/* The declaration file number starts at 1. */
-			declFile->_udata = Dwarf_CU_Context::_fileId.size();
-			declFile->_refdata = 0;
-			declFile->_ref = NULL;
-
-			declLine->_type = DW_AT_decl_line;
-			declLine->_nextAttr = NULL;
-			declLine->_form = DW_FORM_udata;
-			declLine->_sdata = 0;
-			declLine->_udata = declarationLine;
-			declLine->_refdata = 0;
-			declLine->_ref = NULL;
-			currentDie->_attribute = name;
-
-			/* Increment the number of the declaration line. */
-			declarationLine = declarationLine + 1;
 		}
 	}
 	return ret;
