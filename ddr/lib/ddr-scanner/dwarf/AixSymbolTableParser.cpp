@@ -19,6 +19,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
  *******************************************************************************/
 
+#define DEBUGPRINTF_ON
 #include "ddr/error.hpp"
 
 #include "ddr/scanner/dwarf/AixSymbolTableParser.hpp"
@@ -1155,6 +1156,7 @@ parseEnum(const string & data,
 static int
 parseField(const string & data, Dwarf_Die currentDie, Dwarf_Error *error)
 {
+	DEBUGPRINTF("parsing field ||%s||", data.c_str());
 	int ret = DW_DLV_OK;
 	/* field[0] is the name and field[1] is field attributes. */
 	str_vect field = split(data, ':');
